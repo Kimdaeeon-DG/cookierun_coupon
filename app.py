@@ -10,7 +10,7 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 st.set_page_config(page_title="쿠키런 통합 등록기", page_icon="🍪")
-st.title("🍪 쿠키런 전 기기 통합 등록기")
+st.title("🍪 쿠런 쿠폰 무한 루프 등록기")
 
 kakao_id = st.text_input("카카오 회원번호(kakaoId)", placeholder="숫자만 입력")
 
@@ -18,7 +18,7 @@ if st.button("🚀 3종 쿠폰 확실하게 등록"):
     if not kakao_id:
         st.error("회원번호를 입력해주세요!")
     else:
-        with st.status("🛠️ 안정화 모드로 등록 시작...", expanded=True) as status:
+        with st.status("🛠️ 엔진 가동 중...", expanded=True) as status:
             coupons = ["AMAZINGKIWICOOK2", "ALWAYSS2BIKEKIWI", "DEVNOW2026THANKU"]
             
             options = uc.ChromeOptions()
@@ -29,59 +29,63 @@ if st.button("🚀 3종 쿠폰 확실하게 등록"):
             
             try:
                 driver = uc.Chrome(options=options)
-                url = f"https://cookierun.devscake.com/coupon.html?kakaoId={kakao_id}&osType=I"
-                wait = WebDriverWait(driver, 15)
+                # 초기 접속
+                base_url = f"https://cookierun.devscake.com/coupon.html?kakaoId={kakao_id}&osType=I"
+                driver.get(base_url)
                 
                 for i, coupon in enumerate(coupons):
                     st.write(f"⚙️ [{i+1}/3] {coupon} 시도 중...")
                     
-                    # 1. 페이지 로드 후 '확실히' 기다리기
-                    driver.get(url)
-                    time.sleep(2) # 페이지가 완전히 로딩될 시간을 줌
+                    # 1. [핵심] 이전 작업의 흔적을 지우기 위해 강제 새로고침 후 대기
+                    driver.refresh() 
+                    time.sleep(3) # 모바일/서버 환경을 위해 충분히 대기 (입력창 재생성 시간)
+                    
+                    wait = WebDriverWait(driver, 15)
                     
                     try:
-                        # 2. 입력창 확보
-                        inputs = wait.until(EC.visibility_of_all_elements_located((By.TAG_NAME, "input")))
+                        # 2. 입력창 4개 찾기
+                        inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
                         parts = [coupon[j:j+4] for j in range(0, len(coupon), 4)]
                         
-                        # 3. 데이터 입력 (각 칸마다 아주 미세한 간격)
+                        # 3. 입력창이 다시 생겼으므로 깨끗한 상태에서 입력
                         for idx, part in enumerate(parts):
                             if idx < len(inputs):
-                                inputs[idx].click()
-                                inputs[idx].clear()
-                                inputs[idx].send_keys(part)
+                                target_input = inputs[idx]
+                                target_input.click() # 칸 활성화
+                                target_input.send_keys(part)
                         
                         # 4. 버튼 클릭
                         btn = wait.until(EC.element_to_be_clickable((By.ID, "submit-general")))
-                        time.sleep(0.5) # 클릭 전 잠시 대기
+                        time.sleep(0.5) # 클릭 전 안정화
                         driver.execute_script("arguments[0].click();", btn)
                         
-                        # 5. 모든 팝업 처리 (없어질 때까지 끈질기게)
-                        count = 0
-                        while count < 3: # 최대 3개 팝업까지 대응
+                        # 5. 팝업이 1~2개 생기는 것 모두 닫기
+                        # 첫 번째 팝업 대기
+                        wait.until(EC.alert_is_present())
+                        
+                        # 팝업이 더 이상 없을 때까지 반복
+                        while True:
                             try:
-                                WebDriverWait(driver, 5).until(EC.alert_is_present())
                                 alert = driver.switch_to.alert
                                 msg = alert.text
                                 alert.accept()
                                 st.info(f"💬 결과: {msg}")
-                                time.sleep(1) # 팝업 닫힌 후 브라우저 안정화 시간
-                                count += 1
+                                time.sleep(1) # 팝업 닫히는 애니메이션 시간 대기
                             except:
-                                break
+                                break # 팝업이 더 없으면 루프 탈출
                                 
                     except Exception as e:
-                        st.warning(f"⚠️ {coupon}: 등록 중 지연 발생 (다음 쿠폰으로 이동)")
+                        st.warning(f"⚠️ {coupon}: 입력창 로딩 지연으로 재시도합니다.")
                         continue
                     
-                    # 다음 쿠폰으로 넘어가기 전 1초 휴식
+                    # 한 사이클 종료 후 다음 쿠폰 전 여유 시간
                     time.sleep(1)
 
                 status.update(label="✅ 모든 등록 절차 종료!", state="complete", expanded=False)
                 st.balloons()
                 
             except Exception as e:
-                st.error(f"❌ 오류: {e}")
+                st.error(f"❌ 치명적 오류: {e}")
             finally:
                 if 'driver' in locals():
                     driver.quit()
