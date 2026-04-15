@@ -3,6 +3,7 @@ import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import time
 import ssl
 
 # SSL 인증서 에러 방지
@@ -34,32 +35,38 @@ if st.button("🚀 일괄 등록 시작"):
                 for i, coupon in enumerate(coupons):
                     st.write(f"⚡ [{i+1}/3] {coupon} 시도 중...")
                     
-                    # 1. 페이지 로드 (입력창이 사라지므로 매번 호출)
+                    # 1. 페이지 로드
                     driver.get(url)
                     
                     try:
-                        # 2. 입력창이 보일 때까지 대기 (나타나자마자 바로 실행)
+                        # 2. 입력창 대기 및 입력
                         inputs = wait.until(EC.visibility_of_all_elements_located((By.TAG_NAME, "input")))
-                        
-                        # 3. 데이터 입력
                         parts = [coupon[j:j+4] for j in range(0, len(coupon), 4)]
                         for idx, part in enumerate(parts):
                             if idx < len(inputs):
                                 inputs[idx].send_keys(part)
                         
-                        # 4. 버튼 클릭
+                        # 3. 버튼 클릭
                         btn = wait.until(EC.element_to_be_clickable((By.ID, "submit-general")))
                         driver.execute_script("arguments[0].click();", btn)
                         
-                        # 5. 알림창 즉시 처리
-                        wait.until(EC.alert_is_present())
-                        alert = driver.switch_to.alert
-                        msg = alert.text
-                        alert.accept()
-                        st.info(f"💬 결과: {msg}")
+                        # 4. [핵심] 팝업이 몇 개든 다 닫기
+                        # 첫 번째 팝업은 무조건 기다리고, 그 다음부터는 즉시 확인해서 닫음
+                        wait.until(EC.alert_is_present()) 
+                        
+                        while True:
+                            try:
+                                alert = driver.switch_to.alert
+                                msg = alert.text
+                                alert.accept()
+                                st.info(f"💬 결과: {msg}")
+                                time.sleep(0.5) # 팝업 사이의 짧은 간격
+                            except:
+                                # 더 이상 팝업이 없으면 탈출
+                                break
                         
                     except Exception as e:
-                        st.warning(f"⚠️ {coupon}: 등록 중 지연 발생 (재시도 중...)")
+                        st.warning(f"⚠️ {coupon}: 등록 중 지연 발생")
                         continue
 
                 status.update(label="✨ 등록 절차 완료!", state="complete", expanded=False)
